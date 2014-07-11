@@ -484,7 +484,7 @@ prelink_build_conflicts (struct prelink_info *info)
 	{
 	  const char *name;
 	  int nliblist;
-	  Elf32_Lib *liblist;
+	  GElf_Lib *liblist;
 	  Elf_Scn *scn;
 	  Elf_Data *data;
 
@@ -493,7 +493,7 @@ prelink_build_conflicts (struct prelink_info *info)
 		&& (name = strptr (dso, dso->ehdr.e_shstrndx,
 				   dso->shdr[j].sh_name))
 		&& ! strcmp (name, ".gnu.liblist")
-		&& (dso->shdr[j].sh_size % sizeof (Elf32_Lib)) == 0)
+		&& (dso->shdr[j].sh_size % sizeof (GElf_Lib)) == 0)
 	      break;
 
 	  if (j == dso->ehdr.e_shnum)
@@ -503,7 +503,7 @@ prelink_build_conflicts (struct prelink_info *info)
 	      goto error_out;
 	    }
 
-	  nliblist = dso->shdr[j].sh_size / sizeof (Elf32_Lib);
+	  nliblist = dso->shdr[j].sh_size / sizeof (GElf_Lib);
 	  scn = dso->scn[j];
 	  data = elf_getdata (scn, NULL);
 	  if (data == NULL || elf_getdata (scn, data)
@@ -521,7 +521,7 @@ prelink_build_conflicts (struct prelink_info *info)
 		     info->dso->filename, ent->filename);
 	      goto error_out;
 	    }
-	  liblist = (Elf32_Lib *) data->d_buf;
+	  liblist = (GElf_Lib *) data->d_buf;
 	  for (j = 0; j < nliblist; ++j)
 	    if (liblist[j].l_time_stamp != ent->depends[j]->timestamp
 		|| liblist[j].l_checksum != ent->depends[j]->checksum)
