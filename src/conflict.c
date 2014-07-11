@@ -143,7 +143,7 @@ prelink_add_copy_rel (DSO *dso, int n, GElf_Rel *rel, struct copy_relocs *cr)
   Elf_Scn *scn = dso->scn[symsec];
   GElf_Sym sym;
   size_t entsize = dso->shdr[symsec].sh_entsize;
-  off_t off = GELF_R_SYM (rel->r_info) * entsize;
+  off_t off = gelfx_r_sym (dso->elf, rel->r_info) * entsize;
 
   while ((data = elf_getdata (scn, data)) != NULL)
     {
@@ -199,7 +199,7 @@ prelink_find_copy_rel (DSO *dso, int n, struct copy_relocs *cr)
 	  if (sec == -1)
 	    continue;
 
-	  if (GELF_R_TYPE (rel.r_info) == dso->arch->R_COPY
+	  if (gelfx_r_type (dso->elf, rel.r_info) == dso->arch->R_COPY
 	      && prelink_add_copy_rel (dso, n, &rel, cr))
 	    return 1;
 	}
@@ -228,7 +228,7 @@ prelink_find_copy_rela (DSO *dso, int n, struct copy_relocs *cr)
 	  if (sec == -1)
 	    continue;
 
-	  if (GELF_R_TYPE (u.rela.r_info) == dso->arch->R_COPY)
+	  if (gelfx_r_type (dso->elf, u.rela.r_info) == dso->arch->R_COPY)
 	    {
 	      if (u.rela.r_addend != 0)
 		{
@@ -258,14 +258,15 @@ rela_cmp (const void *A, const void *B)
 }
 
 static int
-conflict_rela_cmp (const void *A, const void *B)
+conflict_rela_cmp (const void *A, const void *B, void *arg)
 {
   GElf_Rela *a = (GElf_Rela *)A;
   GElf_Rela *b = (GElf_Rela *)B;
+  DSO *dso = (DSO *)arg;
 
-  if (GELF_R_SYM (a->r_info) < GELF_R_SYM (b->r_info))
+  if (gelfx_r_sym (dso->elf, a->r_info) < gelfx_r_sym (dso->elf, b->r_info))
     return -1;
-  if (GELF_R_SYM (a->r_info) > GELF_R_SYM (b->r_info))
+  if (gelfx_r_sym (dso->elf, a->r_info) > gelfx_r_sym (dso->elf, b->r_info))
     return 1;
   if (a->r_offset < b->r_offset)
     return -1;
@@ -330,7 +331,7 @@ get_relocated_mem (struct prelink_info *info, DSO *dso, GElf_Addr addr,
 	      <= addr)
 	    continue;
 
-	  reloc_type = GELF_R_TYPE (info->conflict_rela[j].r_info);
+	  reloc_type = gelfx_r_type (dso->elf, info->conflict_rela[j].r_info);
 	  reloc_size = dso->arch->reloc_size (reloc_type);
 	  if (info->conflict_rela[j].r_offset + reloc_size <= addr)
 	    continue;
@@ -414,7 +415,7 @@ get_relocated_mem (struct prelink_info *info, DSO *dso, GElf_Addr addr,
 		  if (u.rel.r_offset + dso->arch->max_reloc_size <= addr)
 		    continue;
 
-		  reloc_type = GELF_R_TYPE (u.rel.r_info);
+		  reloc_type = gelfx_r_type (dso->elf, u.rel.r_info);
 		  reloc_size = dso->arch->reloc_size (reloc_type);
 		  if (u.rel.r_offset + reloc_size <= addr)
 		    continue;
@@ -605,7 +606,7 @@ prelink_build_conflicts (struct prelink_info *info)
       /* Record library's position in search scope into R_SYM field.  */
       for (j = first_conflict; j < info->conflict_rela_size; ++j)
 	info->conflict_rela[j].r_info
-	  = GELF_R_INFO (i, GELF_R_TYPE (info->conflict_rela[j].r_info));
+	  = gelfx_r_info (dso->elf, i, gelfx_r_type (dso->elf, info->conflict_rela[j].r_info));
 
       if (dynamic_info_is_set (dso, DT_TEXTREL)
 	  && info->conflict_rela_size > first_conflict)
@@ -737,11 +738,11 @@ prelink_build_conflicts (struct prelink_info *info)
 	  int j, reloc_class;
 
 	  reloc_class
-	    = dso->arch->reloc_class (GELF_R_TYPE (cr.rela[i].r_info));
+	    = dso->arch->reloc_class (gelfx_r_type (dso->elf, cr.rela[i].r_info));
 
 	  assert (reloc_class != RTYPE_CLASS_TLS);
 
-	  for (s = & info->symbols[GELF_R_SYM (cr.rela[i].r_info)]; s;
+	  for (s = & info->symbols[gelfx_r_sym (info->dso->elf, cr.rela[i].r_info)]; s;
 	       s = s->next)
 	    if (s->reloc_class == reloc_class)
 	      break;
@@ -790,13 +791,13 @@ prelink_build_conflicts (struct prelink_info *info)
 
   if (info->conflict_rela_size)
     {
-      qsort (info->conflict_rela, info->conflict_rela_size, sizeof (GElf_Rela),
-	     conflict_rela_cmp);
+      qsort_r (info->conflict_rela, info->conflict_rela_size, sizeof (GElf_Rela),
+	       conflict_rela_cmp, info->dso);
 
       /* Now make sure all conflict RELA's are against absolute 0 symbol.  */
       for (i = 0; i < info->conflict_rela_size; ++i)
 	info->conflict_rela[i].r_info
-	  = GELF_R_INFO (0, GELF_R_TYPE (info->conflict_rela[i].r_info));
+	  = gelfx_r_info (info->dso->elf, 0, gelfx_r_type (info->dso->elf, info->conflict_rela[i].r_info));
 
       if (enable_cxx_optimizations && remove_redundant_cxx_conflicts (info))
 	goto error_out;
