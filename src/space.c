@@ -186,12 +186,14 @@ readonly_is_movable (DSO *dso, GElf_Ehdr *ehdr, GElf_Shdr *shdr, int k)
     case SHT_DYNSYM:
     case SHT_REL:
     case SHT_RELA:
+    case SHT_DYNAMIC:
     case SHT_STRTAB:
     case SHT_NOTE:
     case SHT_GNU_verdef:
     case SHT_GNU_verneed:
     case SHT_GNU_versym:
     case SHT_GNU_LIBLIST:
+    case SHT_MIPS_OPTIONS:
       return 1;
     default:
       if (strcmp (strptr (dso, ehdr->e_shstrndx,
@@ -552,6 +554,7 @@ find_readonly_space (DSO *dso, GElf_Shdr *add, GElf_Ehdr *ehdr,
 		case SHT_GNU_verneed:
 		case SHT_GNU_versym:
 		case SHT_GNU_LIBLIST:
+		case SHT_MIPS_OPTIONS:
 		  if (endaddr >= start
 		      && endaddr - start < minsize)
 		    {
